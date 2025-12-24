@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Agriculture Field Records</title>
+<style>
+:root{font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;}
+body{margin:0;background:#f5f9ff;color:#0b2a3a}
+header{background:linear-gradient(90deg,#0b6fb0,#0b9bd0);color:white;padding:14px 18px;display:flex;align-items:center;gap:12px}
+header img{height:44px}
+.container{display:grid;grid-template-columns:360px 1fr 360px;gap:18px;padding:18px}
+.card{background:white;border-radius:10px;box-shadow:0 6px 18px rgba(6,20,30,0.08);padding:14px}
+h2{margin:4px 0 12px}
+label{display:block;font-size:13px;margin:8px 0 6px}
+input[type=text],input[type=number],input[type=password],input[type=time],select{width:100%;padding:8px;border-radius:6px;border:1px solid #d0e6f6}
+button{padding:8px 10px;border-radius:8px;border:0;background:#0b6fb0;color:white;cursor:pointer}
+small{color:#4b6b7a}
+.farm-list{max-height:280px;overflow:auto;margin-top:8px}
+.farm-item{padding:8px;border-bottom:1px solid #eef6fb;cursor:pointer;display:flex;justify-content:space-between}
+.farm-item:hover{background:#f0fbff}
+.row{display:flex;gap:8px}
+.half{flex:1}
+.muted{color:#5f7b86}
+.today-badge{background:#0b9bd0;color:white;padding:6px;border-radius:6px}
+.work-rows{display:grid;grid-template-columns:1fr;gap:8px}
+.history-list{max-height:420px;overflow:auto}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.danger{background:#ff6b6b}
+.success{background:#2ab27b}
+footer{padding:12px;text-align:center;color:#38606f}
+.small-btn{padding:6px 8px;font-size:13px;border-radius:6px}
+.note{font-size:13px;color:#3b6b7a;background:#ecfbff;padding:8px;border-radius:6px}
+/* Modal */
+.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,11,0.45);z-index:9999}
+.modal.hidden{display:none}
+.modal .modal-content{background:white;padding:20px;border-radius:10px;min-width:320px;max-width:420px;text-align:center}
+.modal .modal-content h2{margin:6px 0}
+.modal input{margin-top:10px}
+.modal .error{color:#d33;margin-top:8px}
+/* Drawer */
+.drawer{position:fixed;right:0;top:0;height:100%;width:360px;background:white;box-shadow:-6px 0 18px rgba(0,0,0,0.12);transform:translateX(100%);transition:transform .25s ease;z-index:9000;padding:14px;overflow:auto}
+.drawer.open{transform:translateX(0)}
+/* Mobile */
+@media (max-width:900px){
+.container{grid-template-columns:1fr;padding:12px}
+.drawer{width:100%;}
+header{padding:12px}
+}
+</style>
+</head>
+<body>
+<header>
+<div style="width:48px;height:44px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#0b6fb0;font-weight:700">NH</div>
+<div>
+<div style="font-weight:700;font-size:18px">NEW HOLLAND 3600-2 - खेत रिकॉर्ड</div>
+<div style="font-size:13px;opacity:0.95">सभी किसान का खेत काम, भुगतान और मशीन विवरण रखें</div>
+</div>
+<div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+<div class="today-badge" id="todayBadge"></div>
+<button id="logoutBtn" class="small-btn" style="display:none">Logout</button>
+</div>
+</header>
+
+<div class="container">
+<!-- Left -->
+<div class="card">
+<h2>किसान जोड़ें <small>(Add Farmer)</small></h2>
+<label>किसान का नाम <small>(Farmer Name)</small></label>
+<input type="text" id="farmerName" placeholder="किसान का पूरा नाम / Full name" />
+<label>मोबाइल नंबर <small>(Mobile)</small></label>
+<input type="text" id="farmerMobile" placeholder="मोबाइल नंबर / Mobile number" />
+<div style="margin-top:10px;display:flex;gap:8px">
+<button id="addFarmerBtn">जोड़ें (Add Farmer)</button>
+<button id="clearAll" class="small-btn">सभी डाटा हटाएँ (Clear All Data)</button>
+</div>
+<div style="margin-top:12px">
+<h3>किसान सूची <small>(Farmers)</small></h3>
+<div class="farm-list card" id="farmerList" style="padding:8px"></div>
+</div>
+</div>
+
+<!-- Center -->
+<div class="card">
+<h2>काम जोड़ें / आज <small>(Add Work / Today)</small></h2>
+<div class="row">
+<div class="half">
+<label>चयनित किसान <small>(Selected Farmer)</small></label>
+<select id="selectedFarmer"></select>
+</div>
+<div class="half">
+<label>तिथि <small>(Date)</small></label>
+<input type="date" id="workDate" />
+</div>
+</div>
+
+<label>काम का प्रकार <small>(Work Type)</small></label>
+<select id="workType" onchange="onWorkTypeChange()">
+<option value="">-- चुनें / Select --</option>
+<option value="cultivating">जोताई (Cultivating)</option>
+<option value="threshing">थ्रेशरिंग (Threshing)</option>
+<option value="cutting">कटाई (Cutting)</option>
+<option value="transportation">ढुलाई (Transportation)</option>
+</select>
+
+<div id="subWorkContainer" style="margin-top:8px"></div>
+
+<div id="workPanels" style="margin-top:10px">
+<!-- Cultivating -->
+<div class="work-panel" id="panel_cultivating" style="display:none">
+<label>उप-कार्य <small>(Sub Work)</small></label>
+<select id="cult_sub">
+<option value="">-- चुनें / Select --</option>
+<option value="cultivator">कल्टीवेटर (Cultivator)</option>
+<option value="rotavator">रोटावेटर (Rotavator)</option>
+</select>
+<label>क्षेत्र <small>(Area)</small></label>
+<div class="row">
+<input type="number" id="cult_bigha" placeholder="बीघा / Bigha" min="0" />
+<input type="number" id="cult_wissa" placeholder="विश्सा 0-19 / Wissa" min="0" max="19" />
+</div>
+<label>बाहा <small>(कितनी बार जोता गया / Baha)</small></label>
+<input type="number" id="cult_baha" placeholder="बाहा / Baha" min="1" value="1" />
+<label>दर प्रति बीघा <small>(Rate per bigha ₹)</small></label>
+<input type="number" id="cult_rate" placeholder="₹ per bigha" min="0" />
+</div>
+
+<!-- Threshing -->
+<div class="work-panel" id="panel_threshing" style="display:none">
+<label>उप-कार्य <small>(Sub Work)</small></label>
+<select id="thresh_sub">
+<option value="">-- चुनें / Select --</option>
+<option value="wheat_thresher">गेहूं थ्रेशर (Wheat Thresher)</option>
+</select>
+<label>प्रारंभ समय <small>(Start Time)</small></label>
+<input type="time" id="thresh_start" />
+<label>समाप्ति समय <small>(End Time)</small></label>
+<input type="time" id="thresh_end" />
+<div style="margin-top:6px"><button id="threshAutoFill" class="small-btn">ऑटो भरें / Auto-fill time</button></div>
+<label>दर प्रति घंटे <small>(Rate per hour ₹)</small></label>
+<input type="number" id="thresh_rate" placeholder="₹ per hour" min="0" />
+</div>
+
+<!-- Cutting -->
+<div class="work-panel" id="panel_cutting" style="display:none">
+<label>उप-कार्य <small>(Sub Work)</small></label>
+<select id="cut_sub">
+<option value="">-- चुनें / Select --</option>
+<option value="cutta_machine">कट्टा मशीन (Cutta Machine)</option>
+</select>
+<label>प्रारंभ समय <small>(Start Time)</small></label>
+<input type="time" id="cut_start" />
+<label>समाप्ति समय <small>(End Time)</small></label>
+<input type="time" id="cut_end" />
+<div style="margin-top:6px"><button id="cutAutoFill" class="small-btn">ऑटो भरें / Auto-fill time</button></div>
+<label>दर प्रति घंटे <small>(Rate per hour ₹)</small></label>
+<input type="number" id="cut_rate" placeholder="₹ per hour" min="0" />
+</div>
+
+<!-- Transportation -->
+<div class="work-panel" id="panel_transportation" style="display:none">
+<label>परिवहन नोट <small>(Transport Notes)</small></label>
+<input type="text" id="trans_note" placeholder="वाहन, दूरी, लोड / Vehicle, distance, load" />
+<label>प्रति यात्रा दर <small>(Rate per trip ₹)</small></label>
+<input type="number" id="trans_rate" placeholder="₹ per trip" min="0" />
+</div>
+</div>
+
+<div style="margin-top:10px;display:flex;gap:8px">
+<button id="saveWorkBtn">सेव करें (Save Work)</button>
+<button id="todayOnlyBtn" class="small-btn">आज के रिकॉर्ड (Today's Work)</button>
+<button id="showAllBtn" class="small-btn">सभी रिकॉर्ड (All Work)</button>
+</div>
+
+<div style="margin-top:12px">
+<h3>काम के रिकॉर्ड <small>(Work Records)</small></h3>
+<div class="history-list" id="recordsList"></div>
+</div>
+</div>
+
+<!-- Right -->
+<div class="card" id="rightPanel">
+<h2>किसान विवरण और भुगतान <small>(Farmer Details & Payment)</small></h2>
+<div id="farmerDetail" class="muted">किसान चुनें (Select a farmer)</div>
+<div style="margin-top:10px">
+<h3>भुगतान <small>(Payment)</small></h3>
+<label>अब भुगतान <small>(Amount to pay now ₹)</small></label>
+<input type="number" id="payAmount" min="0" />
+<div style="display:flex;gap:8px;margin-top:8px">
+<button id="payNowBtn">भुगतान (Pay)</button>
+<button id="resetBalanceBtn" class="small-btn">शेष साफ़ करें (Clear Balance)</button>
+</div>
+</div>
+<div style="margin-top:12px">
+<h3>सेटिंग्स <small>(Settings)</small></h3>
+<label>पासवर्ड बदलें <small>(Change Password)</small></label>
+<input type="password" id="newPassword" placeholder="नया पासवर्ड / Enter new password" />
+<button id="changePwdBtn" class="small-btn">बदलें (Change)</button>
+<div class="note" style="margin-top:10px">पासवर्ड सुरक्षा के लिए छिपा हुआ है (Password hidden for security).</div>
+</div>
+</div>
+</div>
+
+<!-- Drawer -->
+<div id="drawer" class="drawer" aria-hidden="true">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<h3>किसान विवरण (Farmer Details)</h3>
+<button id="closeDrawer" class="small-btn">बंद करें (Close)</button>
+</div>
+<div id="drawerContent"></div>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal" class="modal">
+<div class="modal-content">
+<h2>प्रवेश बंद है (Access Locked)</h2>
+<p>डैशबोर्ड खोलने के लिए पासवर्ड दर्ज करें<br><small>Enter password to unlock</small></p>
+<input type="password" id="loginPassword" placeholder="पासवर्ड / Password" />
+<div style="margin-top:10px"><button id="loginBtn">अनलॉक (Unlock)</button></div>
+<p id="loginError" class="error"></p>
+</div>
+</div>
+
+<footer class="muted">Quick field-records. Data saved locally (localStorage). ब्राउज़र में डेटा बैकअप रखें।</footer>
+
+<script>
+ // ====== Data Model (localStorage) ======
+    // farmers: {id: {name, mobile, createdAt}}
+    // works: [ {id, farmerId, date, type, subType, details, amount, paidAmount} ]
+    // config: {password, wrongAttempts}
+
+    const LS_FARMERS = 'agri_farmers_v1';
+    const LS_WORKS = 'agri_works_v1';
+    const LS_CONFIG = 'agri_config_v1';
+
+    // Utilities
+    function uid(prefix='id'){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+    function load(key){return JSON.parse(localStorage.getItem(key) || 'null');}
+    function save(key,val){localStorage.setItem(key, JSON.stringify(val));}
+
+    // Initialize default config
+    function initConfig(){
+      let cfg = load(LS_CONFIG);
+      if(!cfg){ cfg = {password: '233012', wrongAttempts:0}; save(LS_CONFIG,cfg); }
+      return cfg;
+    }
+    let CONFIG = initConfig();
+
+    // Load lists
+    function getFarmers(){return load(LS_FARMERS) || {};}    
+    function setFarmers(f){save(LS_FARMERS,f);}    
+    function getWorks(){return load(LS_WORKS) || [];}    
+    function setWorks(w){save(LS_WORKS,w);}    
+
+    // Date helpers
+    function todayISO(){return new Date().toISOString().slice(0,10);} // YYYY-MM-DD
+
+    // UI elements
+    const farmerListEl = document.getElementById('farmerList');
+    const selectedFarmerSel = document.getElementById('selectedFarmer');
+    const recordsListEl = document.getElementById('recordsList');
+    const farmerDetailEl = document.getElementById('farmerDetail');
+    const todayBadge = document.getElementById('todayBadge');
+    todayBadge.textContent = 'Today: ' + todayISO();
+
+    // Access control state
+    let unlocked = false; // set true after initial unlock
+
+    // Show login modal on load - block until unlocked
+    const loginModal = document.getElementById('loginModal');
+    const loginError = document.getElementById('loginError');
+    const loginBtn = document.getElementById('loginBtn');
+
+    loginBtn.addEventListener('click', ()=>{ 
+      const val = document.getElementById('loginPassword').value || '';
+      const cfg = load(LS_CONFIG) || {password:'233012', wrongAttempts:0};
+      if(val === cfg.password){
+        unlocked = true; loginModal.classList.add('hidden'); document.getElementById('loginPassword').value=''; loginError.textContent='';
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        cfg.wrongAttempts = 0; save(LS_CONFIG,cfg); CONFIG = cfg; init();
+      } else {
+        cfg.wrongAttempts = (cfg.wrongAttempts||0) + 1;
+        if(cfg.wrongAttempts >=5){ cfg.password = 'NEWHOLLAND3600-2'; save(LS_CONFIG,cfg); CONFIG = cfg; loginError.textContent = 'Too many wrong attempts. Password has been reset.'; }
+        else { save(LS_CONFIG,cfg); loginError.textContent = 'Incorrect Password (पासवर्ड गलत). Attempts: ' + cfg.wrongAttempts; }
+      }
+    });
+
+    // Logout button
+    document.getElementById('logoutBtn').onclick = ()=>{ unlocked=false; loginModal.classList.remove('hidden'); };
+
+    // NEW: central verify function used for all protected actions
+    function verifyBeforeActionSync() {
+      const cfg = load(LS_CONFIG) || {password:'233012', wrongAttempts:0};
+      const pass = prompt('🔐 पासवर्ड दर्ज करें (केवल एडमिन):');
+      if(pass === null) return false;
+      if(pass === cfg.password) {
+        cfg.wrongAttempts = 0; save(LS_CONFIG,cfg); CONFIG = cfg; return true;
+      } else {
+        cfg.wrongAttempts = (cfg.wrongAttempts||0) + 1;
+        if(cfg.wrongAttempts >=5){ cfg.password = 'NEWHOLLAND3600-2'; save(LS_CONFIG,cfg); CONFIG = cfg; alert('Too many wrong attempts. Password reset.'); }
+        else { save(LS_CONFIG,cfg); alert('Incorrect Password (पासवर्ड गलत). Attempts: ' + cfg.wrongAttempts); }
+        return false;
+      }
+    }
+
+    // Helper: require password before showing sensitive info (like farmer profile)
+    function requirePasswordForAction(actionCallback){
+      // If already unlocked in this session, proceed
+      if(unlocked){ actionCallback(); return; }
+      // else show quick prompt modal
+      const pwd = prompt('Enter password to view records (रिकॉर्ड देखने के लिए पासवर्ड दर्ज करें)');
+      if(pwd===null) return;
+      const cfg = load(LS_CONFIG) || {password:'233012', wrongAttempts:0};
+      if(pwd === cfg.password){ actionCallback(); }
+      else {
+        cfg.wrongAttempts = (cfg.wrongAttempts||0) + 1;
+        if(cfg.wrongAttempts >=5){ cfg.password = 'NEWHOLLAND3600-2'; alert('Too many wrong attempts. Password reset.'); }
+        else alert('Incorrect Password (पासवर्ड गलत).');
+        save(LS_CONFIG,cfg); CONFIG = cfg;
+      }
+    }
+
+    // Populate farmer list & select
+    function renderFarmers(){
+      const farmers = getFarmers();
+      farmerListEl.innerHTML = '';
+      selectedFarmerSel.innerHTML = '<option value="">-- Select farmer --</option>';
+      Object.keys(farmers).forEach(id => {
+        const f = farmers[id];
+        const div = document.createElement('div');
+        div.className = 'farm-item';
+        div.innerHTML = `<div>${f.name} (${f.mobile||''})</div><div><button class='small-btn' onclick="viewProfile('${id}')">View (देखें)</button></div>`;
+        farmerListEl.appendChild(div);
+
+        const opt = document.createElement('option'); opt.value = id; opt.textContent = f.name + (f.mobile?(' — '+f.mobile):'');
+        selectedFarmerSel.appendChild(opt);
+      });
+    }
+
+    // View profile (requires password)
+    window.viewProfile = function(id){
+      requirePasswordForAction(()=>{ renderFarmerDetail(id); openDrawerWithContent(id); selectedFarmerSel.value = id; renderRecords(); });
+    };
+
+    function selectFarmer(id){ selectedFarmerSel.value = id; renderFarmerDetail(id); renderRecords(); }
+
+    // When work type changes
+    function onWorkTypeChange(){
+      const val = document.getElementById('workType').value;
+      document.querySelectorAll('.work-panel').forEach(p=>p.style.display='none');
+      if(!val) return;
+      document.getElementById('panel_'+val).style.display = 'block';
+
+      // If threshing or cutting selected -> auto-fill random times (but editable)
+      if(val==='threshing') autoFillTime('thresh_start','thresh_end');
+      if(val==='cutting') autoFillTime('cut_start','cut_end');
+    }
+
+    // Auto-fill random time (same day) — editable by user
+    function autoFillTime(startId,endId){
+      const start = Math.floor(Math.random()*6)+7; // random hour between 7 and 12
+      const duration = Math.floor(Math.random()*3)+1; // 1-3 hours
+      const end = start + duration;
+      const s = String(start).padStart(2,'0') + ':00';
+      const e = String(end).padStart(2,'0') + ':00';
+      document.getElementById(startId).value = s;
+      document.getElementById(endId).value = e;
+    }
+
+    function renderFarmerDetail(id){
+      if(!id){ farmerDetailEl.textContent = 'Select a farmer to view details (किसान चुनें)'; return; }
+      const farmers = getFarmers(); const f = farmers[id];
+      let works = getWorks().filter(w=>w.farmerId===id);
+      const total = works.reduce((s,w)=>s + (w.amount||0),0);
+      const paid = works.reduce((s,w)=>s + (w.paidAmount||0),0);
+      const unpaid = total - paid;
+
+      // Paragraph-wise balance display in Hindi/English
+      const para = `Remaining Balance (बाकी राशि): ₹${unpaid.toFixed(2)}
+Total Paid (कुल भुगतान): ₹${paid.toFixed(2)}
+Total Amount (कुल राशि): ₹${total.toFixed(2)}`;
+
+      farmerDetailEl.innerHTML = `<strong>${f.name}</strong><br>${f.mobile||''}<br>Created: ${f.createdAt}<hr>
+        <pre style="white-space:pre-wrap">${para}</pre>`;
+    }
+
+    function openDrawerWithContent(id){
+      const drawer = document.getElementById('drawer'); const content = document.getElementById('drawerContent');
+      const farmers = getFarmers(); const f = farmers[id];
+      let works = getWorks().filter(w=>w.farmerId===id);
+      content.innerHTML = `<div><strong>${f.name} (${f.mobile||''})</strong><div>Created: ${f.createdAt}</div><hr></div>`;
+      if(works.length===0) content.innerHTML += '<div class="muted">No records (कोई रिकॉर्ड नहीं)</div>';
+      works.forEach(w=>{
+        const sub = w.subType?(' - '+w.subType):'';
+        let details = '';
+        if(w.type==='cultivating') {
+          // include baha if present
+          details = `क्षेत्र: ${w.details.bigha} बीघा ${w.details.wissa} विश्सा — दर ₹${w.details.rate}/बीघा${typeof w.details.baha !== 'undefined' ? ' — बहा: '+w.details.baha : ''}`;
+        }
+        else if(w.type==='threshing' || w.type==='cutting') details = `समय: ${w.details.start} से ${w.details.end} — कुल घंटे: ${w.details.hours.toFixed(2)} — दर ₹${w.details.rate}/घंटा`;
+        else if(w.type==='transportation') details = `नोट: ${w.details.note || ''} — दर ₹${w.details.rate}`;
+        content.innerHTML += `<div style="padding:8px;border-bottom:1px solid #eef6fb"><div><strong>${w.type}${sub}</strong> — ${w.date}</div><div>₹${Number(w.amount).toFixed(2)}</div><div style="margin-top:6px">${details}</div></div>`;
+      });
+      // Paragraph balance below
+      const total = works.reduce((s,w)=>s + (w.amount||0),0);
+      const paid = works.reduce((s,w)=>s + (w.paidAmount||0),0);
+      const unpaid = total - paid;
+      content.innerHTML += `<hr><div><strong>Remaining Balance (बाकी राशि):</strong> ₹${unpaid.toFixed(2)}</div><div><strong>Total Paid (कुल भुगतान):</strong> ₹${paid.toFixed(2)}</div><div><strong>Total Amount (कुल राशि):</strong> ₹${total.toFixed(2)}</div>`;
+      drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false');
+    }
+    document.getElementById('closeDrawer').addEventListener('click', ()=>{ document.getElementById('drawer').classList.remove('open'); });
+
+    // Add farmer
+    document.getElementById('addFarmerBtn').onclick = ()=>{ 
+      // PROTECTED: require password before adding farmer
+      if(!verifyBeforeActionSync()) return;
+      const name = document.getElementById('farmerName').value.trim();
+      const mobile = document.getElementById('farmerMobile').value.trim();
+      if(!name){alert('Enter farmer name (किसान का नाम दर्ज करें)'); return;}
+      const farmers = getFarmers();
+      const id = uid('farmer');
+      farmers[id] = {name, mobile, createdAt: new Date().toLocaleString()};
+      setFarmers(farmers);
+      document.getElementById('farmerName').value = '';
+      document.getElementById('farmerMobile').value = '';
+      renderFarmers();
+      alert('Farmer added (किसान जोड़ दिया गया)');
+    };
+
+    // Clear all
+    // REPLACED with password-protected action (kept behavior same)
+    document.getElementById('clearAll').onclick = ()=>{
+      if(!confirm('Clear ALL data (farmers & works)? (सभी डेटा हटाएँ?)')) return;
+      // password required now
+      if(!verifyBeforeActionSync()) return;
+      localStorage.removeItem(LS_FARMERS); localStorage.removeItem(LS_WORKS);
+      renderFarmers(); renderRecords(); renderFarmerDetail(selectedFarmerSel.value);
+    }
+
+    // Save work
+    document.getElementById('saveWorkBtn').onclick = ()=>{
+      // PROTECTED: require password before saving work
+      if(!verifyBeforeActionSync()) return;
+
+      const farmerId = selectedFarmerSel.value; if(!farmerId){alert('Select a farmer (किसान चुनें)'); return;}
+      const date = document.getElementById('workDate').value || todayISO();
+      const type = document.getElementById('workType').value; if(!type){alert('Select work type (काम चुनें)'); return;}
+      let subType = '';
+      let details = {}; let amount = 0;
+
+      if(type==='cultivating'){
+        subType = document.getElementById('cult_sub').value || '';
+        const b = Number(document.getElementById('cult_bigha').value || 0);
+        const w = Number(document.getElementById('cult_wissa').value || 0);
+        const rate = Number(document.getElementById('cult_rate').value || 0);
+        const baha = Number(document.getElementById('cult_baha').value || 0); // NEW: baha captured
+        if(b<0 || w<0 || w>=100){alert('Enter valid area (सही क्षेत्र दर्ज करें)'); return;}
+        // NEW: Correct area calculation with baha ×
+const area = b + (w / 20);              // बीघा + विश्सा
+const totalBigha = area * baha;         // बहा लागू
+amount = totalBigha * rate;             // अंतिम राशि
+
+details = {
+  bigha: b,
+  wissa: w,
+  baha: baha,
+  rate: rate,
+  areaBeforeBaha: area,
+  totalBigha: totalBigha
+};
+
+         
+      } else if(type==='threshing'){
+        subType = document.getElementById('thresh_sub').value || '';
+        const start = document.getElementById('thresh_start').value;
+        const end = document.getElementById('thresh_end').value;
+        if(!start || !end){alert('Enter start and end time (समय दर्ज करें)'); return;}
+        const hours = timeDiffHours(start,end);
+        const rate = Number(document.getElementById('thresh_rate').value || 0);
+        amount = hours * rate;
+        details = {start,end,hours,rate};
+      } else if(type==='cutting'){
+        subType = document.getElementById('cut_sub').value || '';
+        const start = document.getElementById('cut_start').value;
+        const end = document.getElementById('cut_end').value;
+        if(!start || !end){alert('Enter start and end time (समय दर्ज करें)'); return;}
+        const hours = timeDiffHours(start,end);
+        const rate = Number(document.getElementById('cut_rate').value || 0);
+        amount = hours * rate;
+        details = {start,end,hours,rate};
+      } else if(type==='transportation'){
+        const note = document.getElementById('trans_note').value.trim(); const rate = Number(document.getElementById('trans_rate').value || 0); amount = rate; details = {note, rate};
+      }
+
+      const works = getWorks(); const w = {id: uid('work'), farmerId, date, type, subType, details, amount: Number(amount||0), paidAmount:0}; works.push(w); setWorks(works);
+      alert('Work saved. Amount ₹' + (w.amount.toFixed? w.amount.toFixed(2): w.amount) + ' (काम सेव हो गया)'); renderRecords(); renderFarmerDetail(farmerId);
+    };
+
+    function timeDiffHours(start,end){
+      // start/end are HH:MM strings, assume same day; handle end < start by adding 24h
+      const [sh,sm] = start.split(':').map(Number); const [eh,em] = end.split(':').map(Number);
+      let s = sh*60 + sm; let e = eh*60 + em; if(e < s) e += 24*60; const diffMin = e - s; return diffMin/60;
+    }
+
+    // Render records (all or today's only)
+    let showTodayOnly = false;
+    document.getElementById('todayOnlyBtn').onclick = ()=>{showTodayOnly=true; renderRecords();};
+    document.getElementById('showAllBtn').onclick = ()=>{showTodayOnly=false; renderRecords();};
+
+    function renderRecords(){
+      const works = getWorks(); const farmers = getFarmers(); const sel = selectedFarmerSel.value; recordsListEl.innerHTML = '';
+      let list = works.slice().reverse(); if(showTodayOnly) list = list.filter(w=>w.date===todayISO()); if(sel) list = list.filter(w=>w.farmerId===sel);
+      if(list.length===0) recordsListEl.innerHTML = '<div class="muted">No records (कोई रिकॉर्ड नहीं)</div>';
+      list.forEach(w=>{
+        const div = document.createElement('div'); div.style.padding='8px'; div.style.borderBottom='1px solid #eef6fb';
+        const f = farmers[w.farmerId] || {name:'(Unknown)'};
+        const sub = w.subType?(' - '+w.subType):'';
+        const dateLine = `<div class="flex-between"><div><strong>${f.name}</strong> — ${w.type}${sub} on ${w.date}</div><div>₹${Number(w.amount).toFixed(2)}</div></div>`;
+        let detailsLine = '';
+        if(w.type==='cultivating') detailsLine = `Area: ${w.details.bigha} bigha ${w.details.wissa} wissa — Rate ₹${w.details.rate}/bigha${typeof w.details.baha !== 'undefined' ? ' — Baha: '+w.details.baha : ''}`;
+        else if(w.type==='threshing' || w.type==='cutting') detailsLine = `Time: ${w.details.start} - ${w.details.end} (${w.details.hours.toFixed(2)} hrs) — Rate ₹${w.details.rate}/hr`;
+        else if(w.type==='transportation') detailsLine = `Note: ${w.details.note || ''} — Rate ₹${w.details.rate}`;
+        div.innerHTML = dateLine + '<div class="muted">' + detailsLine + '</div>';
+
+        // actions: mark paid, EDIT (Delete removed as requested)
+        const actions = document.createElement('div'); actions.style.marginTop='8px';
+        const payBtn = document.createElement('button'); payBtn.className='small-btn markPaidBtn'; payBtn.textContent='Mark Paid (भुगतान चिह्नित करें)'; payBtn.setAttribute('data-id', w.id);
+        const editBtn = document.createElement('button'); editBtn.className='small-btn editBtn'; editBtn.style.marginLeft='6px'; editBtn.textContent='Edit Record (संसोधित करें)'; editBtn.setAttribute('data-id', w.id);
+        actions.appendChild(payBtn); actions.appendChild(editBtn); div.appendChild(actions); recordsListEl.appendChild(div);
+      });
+    }
+
+    // Payments from right panel - now protected
+    document.getElementById('payNowBtn').onclick = ()=>{
+      if(!verifyBeforeActionSync()) return;
+      const farmerId = selectedFarmerSel.value; if(!farmerId){alert('Select farmer (किसान चुनें)'); return;}
+      const amt = Number(document.getElementById('payAmount').value || 0); if(amt<=0){alert('Enter amount (राशि दर्ज करें)'); return;}
+      const works = getWorks(); let remaining = amt;
+      for(let w of works){ if(w.farmerId!==farmerId) continue; const due = (w.amount||0) - (w.paidAmount||0); if(due<=0) continue; const pay = Math.min(due, remaining); w.paidAmount = (w.paidAmount||0) + pay; remaining -= pay; if(remaining<=0) break; }
+      setWorks(works); document.getElementById('payAmount').value=''; renderRecords(); renderFarmerDetail(farmerId);
+    };
+
+    // reset balance button protected: will set paidAmount to 0
+    document.getElementById('resetBalanceBtn').onclick = ()=>{
+      if(!verifyBeforeActionSync()) return;
+      if(!confirm('Clear all paid amounts for this farmer (set paid to 0)? (क्या आप शेष साफ़ करना चाहते हैं?)')) return;
+      const farmerId = selectedFarmerSel.value; if(!farmerId) return; const works = getWorks(); for(let w of works) if(w.farmerId===farmerId) w.paidAmount = 0; setWorks(works); renderRecords(); renderFarmerDetail(farmerId);
+    };
+
+    // Change password (hidden on page, only input) - kept same but protected: changing password itself should be allowed
+    document.getElementById('changePwdBtn').onclick = ()=>{
+      // require current password before allowing change
+      if(!verifyBeforeActionSync()) return;
+      const newPwd = document.getElementById('newPassword').value.trim(); if(!newPwd){alert('Enter password (पासवर्ड दर्ज करें)'); return;}
+      const cfg = load(LS_CONFIG) || {password:'233012', wrongAttempts:0}; cfg.password = newPwd; cfg.wrongAttempts = 0; save(LS_CONFIG,cfg); document.getElementById('newPassword').value=''; alert('Password changed successfully (पासवर्ड बदल गया)'); CONFIG = cfg;
+    };
+    
+    // Auto-fill buttons handlers
+    document.getElementById('threshAutoFill').addEventListener('click', ()=> autoFillTime('thresh_start','thresh_end'));
+    document.getElementById('cutAutoFill').addEventListener('click', ()=> autoFillTime('cut_start','cut_end'));
+
+    // Initialization
+    function init(){ if(!document.getElementById('workDate').value) document.getElementById('workDate').value = todayISO(); renderFarmers(); renderRecords(); }
+
+    // Start: do not run init until unlocked (login modal handles it)
+    // But we still need farmer list for selection when unlocked; so init when unlocked done above
+
+    // Utility functions reused
+    function todayISO(){return new Date().toISOString().slice(0,10);} // YYYY-MM-DD
+
+    // Expose functions for template-generated buttons
+    window.renderFarmers = renderFarmers; window.renderRecords = renderRecords; window.renderFarmerDetail = renderFarmerDetail; window.onWorkTypeChange = onWorkTypeChange;
+
+    /*****************************************
+     Event delegation for dynamic buttons (Mark Paid, Edit)
+     All these actions are password-protected inside handlers.
+    *****************************************/
+    document.addEventListener("click", function (e) {
+      // MARK PAID BUTTON (dynamic)
+      if (e.target.classList.contains("markPaidBtn")) {
+        if(!verifyBeforeActionSync()) return;
+        const id = e.target.getAttribute("data-id");
+        markPaid(id);
+        alert("✔ भुगतान चिह्नित कर दिया गया");
+      }
+
+      // EDIT BUTTON (dynamic)
+      if (e.target.classList.contains("editBtn")) {
+        if(!verifyBeforeActionSync()) return;
+        const id = e.target.getAttribute("data-id");
+        editRecordById(id);
+      }
+    });
+
+    // markPaid helper (used above)
+    function markPaid(workId){
+      const works = getWorks();
+      const w = works.find(x=>x.id===workId);
+      if(!w) return alert('Record not found');
+      const due = (w.amount||0) - (w.paidAmount||0);
+      const amt = Number(prompt('Amount paid now (₹) (अब कितना दिया)', due) || 0); if(amt<=0) return;
+      w.paidAmount = (w.paidAmount||0) + amt;
+      setWorks(works); renderRecords(); renderFarmerDetail(w.farmerId);
+    }
+
+    // EDIT record function (replaces delete) — password already checked by caller
+    function editRecordById(workId){
+      const works = getWorks();
+      const idx = works.findIndex(x=>x.id===workId);
+      if(idx===-1) return alert('Record not found');
+      const w = works[idx];
+
+      // For minimal disturbance: prompt for fields depending on type
+      if(w.type === 'cultivating'){
+        const nb = prompt('Update bigha (बीघा)', w.details.bigha);
+        const nw = prompt('Update wissa (विश्सा)', w.details.wissa);
+        const nbaha = prompt('Update baha (बाहा)', typeof w.details.baha !== 'undefined' ? w.details.baha : 10);
+        const nrate = prompt('Update rate (दर प्रति बीघा)', w.details.rate);
+        // basic validation and update
+        w.details.bigha = Number(nb || w.details.bigha);
+        w.details.wissa = Number(nw || w.details.wissa);
+        w.details.baha = Number(nbaha || w.details.baha || 0);
+        w.details.rate = Number(nrate || w.details.rate);
+        // recalc amount
+        const totalBigha = w.details.bigha + (w.details.wissa/20);
+        w.details.totalBigha = totalBigha;
+        w.amount = totalBigha * (w.details.rate||0);
+      } else if(w.type === 'threshing' || w.type === 'cutting'){
+        const nstart = prompt('Update start time (HH:MM)', w.details.start);
+        const nend = prompt('Update end time (HH:MM)', w.details.end);
+        const nrate = prompt('Update rate (दर प्रति घंटे)', w.details.rate);
+        w.details.start = nstart || w.details.start;
+        w.details.end = nend || w.details.end;
+        w.details.hours = timeDiffHours(w.details.start, w.details.end);
+        w.details.rate = Number(nrate || w.details.rate);
+        w.amount = w.details.hours * w.details.rate;
+      } else if(w.type === 'transportation'){
+        const nnote = prompt('Update note', w.details.note || '');
+        const nrate = prompt('Update rate (प्रति यात्रा)', w.details.rate);
+        w.details.note = nnote || w.details.note;
+        w.details.rate = Number(nrate || w.details.rate);
+        w.amount = w.details.rate;
+      }
+
+      // Save and re-render
+      works[idx] = w;
+      setWorks(works);
+      renderRecords();
+      renderFarmerDetail(w.farmerId);
+      alert('Record updated (रिकॉर्ड अपडेट हुआ)');
+    }
+
+</script>
+</body>
+</html>
